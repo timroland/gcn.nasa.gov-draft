@@ -20,14 +20,12 @@ import {
 import { validate } from 'email-validator'
 import { useState } from 'react'
 
+import Hint from '~/components/Hint'
 import { ReCAPTCHA, verifyRecaptcha } from '~/components/ReCAPTCHA'
-import { getEnvOrDie, origin } from '~/lib/env.server'
-import {
-  getBasicAuthHeaders,
-  getCanonicalUrlHeaders,
-  pickHeaders,
-} from '~/lib/headers.server'
+import { origin } from '~/lib/env.server'
+import { getCanonicalUrlHeaders, pickHeaders } from '~/lib/headers.server'
 import { getFormDataString } from '~/lib/utils'
+import { postZendeskRequest } from '~/lib/zendesk.server'
 import { useEmail, useName, useRecaptchaSiteKey } from '~/root'
 import type { BreadcrumbHandle } from '~/root/Title'
 
@@ -58,27 +56,11 @@ export async function action({ request }: ActionFunctionArgs) {
     }
   )
 
-  const response = await fetch(
-    'https://nasa-gcn.zendesk.com/api/v2/requests.json',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getBasicAuthHeaders(
-          `${getEnvOrDie('ZENDESK_TOKEN_EMAIL')}/token`,
-          getEnvOrDie('ZENDESK_TOKEN')
-        ),
-      },
-      body: JSON.stringify({
-        request: { requester: { name, email }, subject, comment: { body } },
-      }),
-    }
-  )
-  if (!response.ok) {
-    console.error(response)
-    throw new Error(`Reqeust failed with status ${response.status}`)
-  }
-
+  await postZendeskRequest({
+    requester: { name, email },
+    subject,
+    comment: { body },
+  })
   return { email, subject }
 }
 
@@ -156,12 +138,17 @@ export default function () {
               setSubjectValid(Boolean(value))
             }}
           />
-          <Label htmlFor="email">What is your question?</Label>
+          <Label htmlFor="body">What is your question?</Label>
+          <Hint id="bodyHint">
+            Make sure that you do not include any passwords or client secrets in
+            your message.
+          </Hint>
           <Textarea
             id="body"
             name="body"
             required
             placeholder="Body"
+            aria-describedby="bodyHint"
             onChange={({ target: { value } }) => {
               setBodyValid(Boolean(value))
             }}

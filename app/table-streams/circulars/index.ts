@@ -19,9 +19,12 @@ import type {
 
 import { sendEmailBulk } from '~/lib/email.server'
 import { origin } from '~/lib/env.server'
+import { send as sendKafka } from '~/lib/kafka.server'
 import { createTriggerHandler } from '~/lib/lambdaTrigger.server'
 import type { Circular } from '~/routes/circulars/circulars.lib'
 import { formatCircularText } from '~/routes/circulars/circulars.lib'
+
+import { $id as circularsJsonSchemaId } from '@nasa-gcn/schema/gcn/circulars.schema.json'
 
 const index = 'circulars'
 const fromName = 'GCN Circulars'
@@ -119,7 +122,19 @@ export const handler = createTriggerHandler(
     } /* (eventName === 'INSERT' || eventName === 'MODIFY') */ else {
       const circular = unmarshallTrigger(dynamodb!.NewImage) as Circular
       promises.push(putIndex(circular))
-      if (eventName === 'INSERT') promises.push(send(circular))
+      if (eventName === 'INSERT') {
+        promises.push(send(circular))
+        const { sub, ...cleanedCircular } = circular
+        promises.push(
+          sendKafka(
+            'gcn.circulars',
+            JSON.stringify({
+              $schema: circularsJsonSchemaId,
+              ...cleanedCircular,
+            })
+          )
+        )
+      }
     }
 
     await Promise.all(promises)

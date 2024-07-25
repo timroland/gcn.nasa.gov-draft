@@ -37,6 +37,13 @@ export interface CircularChangeRequest extends CircularMetadata {
   requestorSub: string
   requestorEmail: string
   format: CircularFormat
+  submitter: string
+  createdOn: number
+}
+
+export interface CircularChangeRequestKeys {
+  circularId: number
+  requestorSub: string
 }
 
 type SubjectMatcher = [RegExp, (match: RegExpMatchArray) => string]
@@ -125,6 +132,14 @@ export function formatIsValid(format: string): format is CircularFormat {
   return (circularFormats as any as string[]).includes(format)
 }
 
+export function submitterIsValid(submitter?: string) {
+  return Boolean(submitter)
+}
+
+export function dateTimeIsValid(date: string) {
+  return !Number.isNaN(Date.parse(date))
+}
+
 export function emailIsAutoReply(subject: string) {
   const lowercaseSubject = subject.toLowerCase()
   return emailAutoReplyChecklist.some((x) => lowercaseSubject.includes(x))
@@ -159,6 +174,7 @@ export const validSubjectKeywords = [
   'LOFAR',
   'LVC',
   'LVK',
+  'LXT',
   'MAGIC',
   'MASTER',
   'MAXI',

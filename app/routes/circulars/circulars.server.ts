@@ -28,6 +28,7 @@ import {
 import type {
   Circular,
   CircularChangeRequest,
+  CircularChangeRequestKeys,
   CircularMetadata,
 } from './circulars.lib'
 import { sendEmail } from '~/lib/email.server'
@@ -313,7 +314,9 @@ export async function circularRedirect(query: string) {
 }
 
 export async function putVersion(
-  circular: Omit<Circular, 'createdOn' | 'submitter' | 'submittedHow'>,
+  circular: Omit<Circular, 'createdOn' | 'submitter' | 'submittedHow'> & {
+    createdOn?: number
+  },
   user?: User
 ): Promise<number> {
   validateCircular(circular)
@@ -368,14 +371,14 @@ export async function createChangeRequest(
   item: Omit<
     Circular,
     | 'sub'
-    | 'createdOn'
-    | 'submitter'
     | 'submittedHow'
     | 'bibcode'
     | 'editedBy'
     | 'version'
     | 'editedOn'
-  >,
+    | 'submitter'
+    | 'createdOn'
+  > & { submitter?: string; createdOn?: number },
   user?: User
 ) {
   validateCircular(item)
@@ -385,19 +388,24 @@ export async function createChangeRequest(
     })
   const requestor = formatAuthor(user)
   const db = await tables()
+  const circular = (await db.circulars.get({
+    circularId: item.circularId,
+  })) as Circular
   await db.circulars_change_requests.put({
     ...item,
     requestorSub: user.sub,
     requestorEmail: user.email,
     requestor,
+    createdOn: item.createdOn ?? circular.createdOn,
+    submitter: item.submitter ?? circular.submitter,
   })
 
   await sendEmail({
     to: [user.email],
     fromName: 'GCN Circulars',
     subject: 'GCN Circulars Change Request: Received',
-    body: dedent`Your change request has been created for GCN Circular ${item.circularId}. 
-    
+    body: dedent`Your change request has been created for GCN Circular ${item.circularId}.
+
     You will receive another email when your request has been reviewed.`,
   })
 }
@@ -453,10 +461,21 @@ export async function deleteChangeRequest(
     to: [requestorEmail],
     fromName: 'GCN Circulars',
     subject: 'GCN Circulars Change Request: Rejected',
-    body: dedent`Your change request has been rejected for GCN Circular ${circularId}. 
-    
+    body: dedent`Your change request has been rejected for GCN Circular ${circularId}.
+
     View the Circular at ${origin}/circulars/${circularId}`,
   })
+}
+
+export async function bulkDeleteChangeRequests(
+  changeRequests: CircularChangeRequestKeys[],
+  user: User
+) {
+  await Promise.all(
+    changeRequests.map((x) =>
+      deleteChangeRequest(x.circularId, x.requestorSub, user)
+    )
+  )
 }
 
 /**
@@ -506,6 +525,8 @@ export async function approveChangeRequest(
     editedBy: `${formatAuthor(user)} on behalf of ${changeRequest.requestor}`,
     editedOn: Date.now(),
     format: changeRequest.format,
+    submitter: changeRequest.submitter,
+    createdOn: changeRequest.createdOn ?? circular.createdOn, // This is temporary while there are some requests without this property
   })
 
   await deleteChangeRequestRaw(circularId, requestorSub)
@@ -514,8 +535,8 @@ export async function approveChangeRequest(
     to: [changeRequest.requestorEmail],
     fromName: 'GCN Circulars',
     subject: 'GCN Circulars Change Request: Approved',
-    body: dedent`Your change request has been approved for GCN Circular ${changeRequest.circularId}. 
-    
+    body: dedent`Your change request has been approved for GCN Circular ${changeRequest.circularId}.
+
     View the Circular at ${origin}/circulars/${changeRequest.circularId}`,
   })
 }

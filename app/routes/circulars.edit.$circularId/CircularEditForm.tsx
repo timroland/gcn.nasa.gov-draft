@@ -14,31 +14,25 @@ import {
   InputPrefix,
   Table,
   TextInput,
-  Textarea,
 } from '@trussworks/react-uswds'
 import classnames from 'classnames'
 import { type ReactNode, useContext, useState } from 'react'
 import { dedent } from 'ts-dedent'
 
 import { AstroDataContext } from '../circulars.$circularId.($version)/AstroDataContext'
-import {
-  MarkdownBody,
-  PlainTextBody,
-} from '../circulars.$circularId.($version)/Body'
+import { MarkdownBody } from '../circulars.$circularId.($version)/Body'
 import {
   type CircularFormat,
   bodyIsValid,
+  dateTimeIsValid,
   subjectIsValid,
+  submitterIsValid,
 } from '../circulars/circulars.lib'
 import { RichEditor } from './RichEditor'
-import {
-  SegmentedRadioButton,
-  SegmentedRadioButtonGroup,
-} from './SegmentedRadioButton'
 import { CircularsKeywords } from '~/components/CircularsKeywords'
 import CollapsableInfo from '~/components/CollapsableInfo'
 import Spinner from '~/components/Spinner'
-import { useFeature } from '~/root'
+import { useModStatus } from '~/root'
 
 function SyntaxExample({
   label,
@@ -112,20 +106,22 @@ export function SyntaxReference() {
 export function CircularEditForm({
   formattedContributor,
   circularId,
-  submitter,
+  defaultSubmitter,
   defaultFormat,
   defaultBody,
   defaultSubject,
   searchString,
+  defaultCreatedOnDateTime,
   intent,
 }: {
   formattedContributor: string
   circularId?: number
-  submitter?: string
+  defaultSubmitter?: string
   defaultFormat?: CircularFormat
   defaultBody: string
   defaultSubject: string
   searchString: string
+  defaultCreatedOnDateTime?: string
   intent: 'correction' | 'edit' | 'new'
 }) {
   let formSearchString = '?index'
@@ -139,10 +135,14 @@ export function CircularEditForm({
   const [body, setBody] = useState(defaultBody)
   const [subject, setSubject] = useState(defaultSubject)
   const [format, setFormat] = useState(defaultFormat)
+  const [dateTime, setDateTime] = useState(defaultCreatedOnDateTime ?? '')
+  const [submitter, setSubmitter] = useState(defaultSubmitter)
+  const submitterValid = circularId ? submitterIsValid(submitter) : true
   const bodyValid = bodyIsValid(body)
-  const [showPreview, setShowPreview] = useState(false)
+  const dateTimeValid = circularId ? dateTimeIsValid(dateTime) : true
   const sending = Boolean(useNavigation().formData)
-  const valid = subjectValid && bodyValid
+  const valid = subjectValid && bodyValid && dateTimeValid && submitterValid
+
   let headerText, saveButtonText
 
   switch (intent) {
@@ -160,28 +160,54 @@ export function CircularEditForm({
       break
   }
   const bodyPlaceholder = useBodyPlaceholder()
-
   const changesHaveBeenMade =
     body.trim() !== defaultBody.trim() ||
     subject.trim() !== defaultSubject.trim() ||
-    format !== defaultFormat
+    format !== defaultFormat ||
+    submitter?.trim() !== defaultSubmitter ||
+    dateTime !== defaultCreatedOnDateTime
+
+  const userIsModerator = useModStatus()
+
   return (
     <AstroDataContext.Provider value={{ rel: 'noopener', target: '_blank' }}>
       <h1>{headerText} GCN Circular</h1>
+      {intent === 'correction' && (
+        <p className="usa-paragraph">
+          See{' '}
+          <Link to="/docs/circulars/corrections">
+            documentation on Circulars moderation
+          </Link>{' '}
+          for more information on corrections.
+        </p>
+      )}
       <Form method="POST" action={`/circulars${formSearchString}`}>
         <input type="hidden" name="intent" value={intent} />
-        {circularId && (
+        <input type="hidden" name="circularId" value={circularId} />
+        {circularId !== undefined && userIsModerator && (
           <>
-            <input type="hidden" name="circularId" value={circularId} />
-            <InputGroup className="border-0 maxw-full">
+            <InputGroup
+              className={classnames('maxw-full', {
+                'usa-input--error': !submitterValid,
+                'usa-input--success': submitterValid,
+              })}
+            >
               <InputPrefix className="wide-input-prefix">From</InputPrefix>
-              <span className="padding-1">{submitter}</span>
+              <TextInput
+                className="maxw-full"
+                name="submitter"
+                id="submitter"
+                type="text"
+                defaultValue={defaultSubmitter}
+                onChange={(event) => setSubmitter(event.target.value)}
+                required
+              />
             </InputGroup>
           </>
         )}
         <InputGroup className="border-0 maxw-full">
           <InputPrefix className="wide-input-prefix">
-            {circularId ? 'Editor' : 'From'}
+            {circularId === undefined ? 'From' : 'Editor'}
           </InputPrefix>
           <span className="padding-1">{formattedContributor} </span>
           <Link
@@ -193,6 +219,25 @@ export function CircularEditForm({
             </Button>
           </Link>
         </InputGroup>
+        {circularId !== undefined && (
+          <InputGroup
+            className={classnames('maxw-full', {
+              'usa-input--error': !dateTime || !Date.parse(dateTime),
+              'usa-input--success': dateTime && Date.parse(dateTime),
+            })}
+          >
+            <InputPrefix className="wide-input-prefix">Date</InputPrefix>
+            <input
+              defaultValue={defaultCreatedOnDateTime}
+              onInput={({ currentTarget: { value } }) => {
+                setDateTime(value)
+              }}
+              name="createdOn"
+              id="createdOn"
+              className="maxw-full"
+            />
+          </InputGroup>
+        )}
         <InputGroup
           className={classnames('maxw-full', {
             'usa-input--error': subjectValid === false,
@@ -226,54 +271,18 @@ export function CircularEditForm({
         <label hidden htmlFor="body">
           Body
         </label>
-        {useFeature('CIRCULARS_MARKDOWN') ? (
-          <RichEditor
-            aria-describedby="bodyDescription"
-            placeholder={bodyPlaceholder}
-            defaultValue={defaultBody}
-            defaultMarkdown={defaultFormat === 'text/markdown'}
-            required
-            className={bodyValid ? 'usa-input--success' : undefined}
-            onChange={({ target: { value } }) => {
-              setBody(value)
-            }}
-            markdownStateSetter={setFormat}
-          />
-        ) : (
-          <>
-            <SegmentedRadioButtonGroup>
-              <SegmentedRadioButton
-                defaultChecked
-                onClick={() => setShowPreview(false)}
-              >
-                Edit
-              </SegmentedRadioButton>
-              <SegmentedRadioButton onClick={() => setShowPreview(true)}>
-                Preview
-              </SegmentedRadioButton>
-            </SegmentedRadioButtonGroup>
-            <Textarea
-              hidden={showPreview}
-              name="body"
-              id="body"
-              aria-describedby="bodyDescription"
-              placeholder={bodyPlaceholder}
-              defaultValue={defaultBody}
-              required
-              className={classnames('maxw-full', {
-                'usa-input--success': bodyValid,
-              })}
-              onChange={({ target: { value } }) => {
-                setBody(value)
-              }}
-            />
-            {showPreview && (
-              <PlainTextBody className="border padding-1 margin-top-1">
-                {body}
-              </PlainTextBody>
-            )}
-          </>
-        )}
+        <RichEditor
+          aria-describedby="bodyDescription"
+          placeholder={bodyPlaceholder}
+          defaultValue={defaultBody}
+          defaultMarkdown={defaultFormat === 'text/markdown'}
+          required
+          className={bodyValid ? 'usa-input--success' : undefined}
+          onChange={({ target: { value } }) => {
+            setBody(value)
+          }}
+          markdownStateSetter={setFormat}
+        />
         <CollapsableInfo
           id="bodyDescription"
           preambleText={

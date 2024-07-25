@@ -26,8 +26,14 @@ export default function () {
               <NavLink key="agile" to="agile">
                 AGILE
               </NavLink>,
+              <NavLink key="burstcube" to="burstcube">
+                BurstCube
+              </NavLink>,
               <NavLink key="calet" to="calet">
                 CALET
+              </NavLink>,
+              <NavLink key="einstein-probe" to="einstein-probe">
+                Einstein Probe
               </NavLink>,
               <NavLink key="fermi" to="fermi">
                 Fermi Gamma-ray Space Telescope

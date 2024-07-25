@@ -10,13 +10,22 @@ import { useState } from 'react'
 import type { NoticeFormat } from '../NoticeFormat'
 import { NestedCheckboxes } from '../nested-checkboxes/NestedCheckboxes'
 import { triggerRate } from './rates'
+import { useFeature } from '~/root'
+
+const minRate = 1 / 7
 
 function humanizedCount(count: number, singular: string, plural?: string) {
-  const noun = count === 1 ? singular : plural ?? `${singular}s`
+  const noun = count === 1 ? singular : (plural ?? `${singular}s`)
   return `${count} ${noun}`
 }
 
 function humanizedRate(rate: number, singular: string, plural?: string) {
+  let isUpperBound
+  if (rate < minRate) {
+    isUpperBound = true
+    rate = minRate
+  }
+
   let unit = 'day'
   if (rate) {
     for (const { factor, unit: proposedUnit } of [
@@ -30,7 +39,7 @@ function humanizedRate(rate: number, singular: string, plural?: string) {
       if (rate > 0.5) break
     }
   }
-  return `${humanizedCount(Math.round(rate), singular, plural)} per ${unit}`
+  return `${isUpperBound ? '< ' : ''}${humanizedCount(Math.round(rate), singular, plural)} per ${unit}`
 }
 
 const NoticeTypes = {
@@ -182,16 +191,20 @@ const NoticeTypeLinks: { [key: string]: string | undefined } = {
   Other: undefined,
 }
 
-const JsonNoticeTypes = {
+const JsonNoticeTypes: { [key: string]: string[] } = {
+  Circulars: ['gcn.circulars'],
   IceCube: ['gcn.notices.icecube.lvk_nu_track_search'],
   LVK: ['igwn.gwalert'],
   Swift: ['gcn.notices.swift.bat.guano'],
+  'Einstein Probe': ['gcn.notices.einstein_probe.wxt.alert'],
 }
 
 const JsonNoticeTypeLinks: { [key: string]: string | undefined } = {
+  Circulars: '/circulars',
   IceCube: '/missions/icecube',
   LVK: 'https://emfollow.docs.ligo.org/userguide/tutorial/receiving/gcn.html#receiving-and-parsing-notices',
   Swift: '/missions/swift',
+  'Einstein Probe': '/missions/einstein-probe',
 }
 
 interface NoticeTypeCheckboxProps {
@@ -209,6 +222,11 @@ export function NoticeTypeCheckboxes({
   const [selectedCounter, setSelectedCounter] = useState(0)
   const [alertEstimate, setAlertEstimate] = useState(0)
 
+  if (useFeature('SVOM_QUICKSTART')) {
+    JsonNoticeTypes.SVOM = ['gcn.notices.svom']
+    JsonNoticeTypeLinks.SVOM = '/missions/svom'
+  }
+
   const counterfunction = (childRef: HTMLInputElement) => {
     if (childRef.checked) {
       userSelected.add(childRef.name)
@@ -222,7 +240,11 @@ export function NoticeTypeCheckboxes({
     let estimate = 0
     for (const noticeType of userSelected) {
       estimate +=
-        triggerRate[`gcn.classic.${selectedFormat}.${noticeType}`] ?? 0
+        triggerRate[
+          selectedFormat === 'json'
+            ? noticeType
+            : `gcn.classic.${selectedFormat}.${noticeType}`
+        ] ?? 0
     }
     setAlertEstimate(estimate)
 
@@ -276,7 +298,7 @@ export function NoticeTypeCheckboxes({
         childoncheckhandler={counterfunction}
       />
       <div className="text-bold text-ink">
-        {humanizedCount(selectedCounter, 'notice type')} selected for about{' '}
+        {humanizedCount(selectedCounter, 'notice type')} selected for{' '}
         {humanizedRate(alertEstimate, 'alert')}
       </div>
     </>
