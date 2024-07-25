@@ -16,7 +16,7 @@ import logo from './logo.png'
   className="grid-col-6 mobile-lg:grid-col-4 tablet:grid-col-2 desktop:grid-col-3 height-auto"
 />
 
-**Anticipated Launch Date:** June 24, 2024
+**Launch Date:** June 22, 2024
 
 **Anticipated Start of Science Operations:** September 2024
 
@@ -31,10 +31,13 @@ The SVOM spacecraft carries 4 main instruments of which 2 are French (ECLAIRs an
 
  <div className="overflow-table">
 
-| Instruments       | Energy Range  | Field of View | Localization                               |
-| ----------------- | ------------- | ------------- | ------------------------------------------ |
-| ECLAIRs           | 4 - 250 keV   | 2 ster        | ~TBD° radius (statistical, 90% confidence) |
-| Gamma Ray Monitor | 15 - 5000 keV | 2.6 ster      | ~TBD° radius (statistical, 90% confidence) |
+| Instruments                        | Energy Range            | Field of View | Localization                                   |
+| -----------------------            | ----------------------- | ------------- | ---------------------------------------------- |
+| ECLAIRs                            | 4 - 250 keV             | 2 ster        | ~8' radius (statistical, 90% confidence)       |
+| Gamma Ray burst Monitor (GRM)      | 15 - 5000 keV           | 2.6 ster      | ~1-10° radius (statistical, 90% confidence)    |
+| Microchannel X-ray Telescope (MXT) | 15 - 5000 keV           | 1.1° x 1.1°   | ~10-100'' radius (statistical, 90% confidence) |
+| Visual Telescope (VT)              | Blue Band: 450 - 650 nm | 26' x 26'     | ~TBD'' radius (statistical, 90% confidence)    |
+|                                    | Red Band: 650 - 1000 nm |               |                                                |
 
  </div>
 
@@ -42,16 +45,13 @@ The SVOM spacecraft carries 4 main instruments of which 2 are French (ECLAIRs an
 
 SVOM distributes alerts and localizations detections of gamma-ray transients. These notices are published on the GCN Kafka and VOEvent topics as `gcn.notices.svom` and `gcn.notices.svom.voevent`, respectively.
 
-{/\* The [GCN schema](/schema/stable/gcn/notices/svom/alert.schema.json) and
-example [JSON ECLAIRs message](gcn/notices/svom/eclairs/alert.slewing.example.json) and [JSON GRM message](gcn/notices/svom/grm/alert.grm.example.json) files are available to use. See the [Schema Browser](/docs/schema/stable/gcn/notices/svom/alert.schema.json) for more information on the properties defined in the schema.
-
-[Detailed Description and Examples](https://github.com/nasa-gcn/gcn-schema/tree/main/gcn/notices/svom) \*/}
-
  <div className="overflow-table">
 
-| Type    | Contents                                                                        | Latency |
-| ------- | ------------------------------------------------------------------------------- | ------- |
-| `Alert` | eclairs-wakeup, eclairs.alert.not-slewing, eclairs.alert.slewing, grm.alert.grm | TBD     |
+| Type               | Contents                                                                                  | Latency   |
+| ------------------ | ----------------------------------------------------------------------------------------- | --------- |
+| `trigger`          | eclairs.trigger.wakeup, eclairs.trigger.not-slewing, eclairs.trigger.slewing, grm.trigger | ~1-10 sec |
+| `refined`          | eclairs.refined, grm.refined, eclgrm.refined                                              | ~10 min   |
+| `mxt.localisation` | mxt.localisation                                                                          | ~1 min    |
 
  </div>
 
